@@ -115,6 +115,7 @@ typedef struct
    unsigned int sidmaduration;
    unsigned int aidmamodifier;
    unsigned int forcealignmentofpidma;
+   unsigned int countPerScanlineOverride;
    uint32_t set_flags;
 } romdatabase_entry;
 
@@ -134,6 +135,7 @@ typedef struct
 #define ROMDATABASE_ENTRY_SIDMADURATION BIT(12)
 #define ROMDATABASE_ENTRY_AIDMAMODIFIER BIT(13)
 #define ROMDATABASE_ENTRY_FORCEALIGNMENTOFPIDMA BIT(14)
+#define ROMDATABASE_ENTRY_COUNTPERSCANLINEOVERRIDE BIT(15)
 
 typedef struct _romdatabase_search
 {
