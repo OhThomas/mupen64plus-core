@@ -553,6 +553,13 @@ void gen_interrupt(struct r4300_core* r4300)
         if (savestates_get_job() == savestates_job_load)
         {
             savestates_load();
+
+            // Doing this because the interpreter doesn't get initiated properly after resetting from
+            // the in game settings menu (no instructions seem to get executed)
+            if(g_ResolutionReset != 0 && get_r4300_emumode(&g_dev.r4300) == 1 && g_LoadOnce == 0){
+                main_state_load_latest_auto_save();
+                g_LoadOnce++;
+            }
             return;
         }
 
