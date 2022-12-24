@@ -29,7 +29,6 @@
 #include "main/cheat.h"
 #include "device/device.h"
 #include "osal/preproc.h"
-#include <setjmp.h>
 
 #if defined(__GNUC__)
 #define ATTR_FMT(fmtpos, attrpos) __attribute__ ((format (printf, fmtpos, attrpos)))
@@ -42,6 +41,7 @@ extern m64p_handle g_CoreConfig;
 
 extern int g_RomWordsLittleEndian;
 extern int g_EmulatorRunning;
+//extern int g_EmuModeInitiated;
 extern int g_rom_pause;
 
 extern struct cheat_ctx g_cheat_ctx;
@@ -56,10 +56,9 @@ extern m64p_frame_callback g_FrameCallback;
 
 extern int g_gs_vi_counter;
 
-jmp_buf jump_exit;
-
 const char* get_savestatepath(void);
 const char* get_savesrampath(void);
+const char* get_savestatefilename(void);
 
 void new_frame(void);
 void new_vi(void);

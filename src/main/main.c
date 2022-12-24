@@ -123,6 +123,8 @@ static int   l_TakeScreenshot = 0;       // Tell OSD Rendering callback to take 
 static int   l_SpeedFactor = 100;        // percentage of nominal game speed at which emulator is running
 static int   l_FrameAdvance = 0;         // variable to check if we pause on next frame
 static int   l_MainSpeedLimit = 1;       // insert delay during vi_interrupt to keep speed at real-time
+static int   l_SettingsReset = 0;        // checks if the game needs to pause before starting because of in game settings being changed
+static int   l_SettingsFrameCounter = 0; // counts frames to make sure the video plugin is showing when resetting via settings reset
 
 static osd_message_t *l_msgVol = NULL;
 static osd_message_t *l_msgFF = NULL;
@@ -160,24 +162,83 @@ static const char *get_savepathdefault(const char *configpath)
     return path;
 }
 
+static char *get_save_filename(void)
+{
+    static char filename[256];
+
+    if (strstr(ROM_SETTINGS.goodname, "(unknown rom)") == NULL) {
+        snprintf(filename, 256, "%.32s-%.8s", ROM_SETTINGS.goodname, ROM_SETTINGS.MD5);
+    } else if (ROM_HEADER.Name[0] != 0) {
+        snprintf(filename, 256, "%s-%.8s", ROM_PARAMS.headername, ROM_SETTINGS.MD5);
+    } else {
+        snprintf(filename, 256, "unknown-%.8s", ROM_SETTINGS.MD5);
+    }
+
+    return filename;
+}
+
 static char *get_mempaks_path(void)
 {
-    return formatstr("%s%s.mpk", get_savesrampath(), ROM_SETTINGS.goodname);
+    char *path;
+    size_t size = 0;
+
+    /* check if old file path exists, if it does then use that */
+    path = formatstr("%s%s.mpk", get_savesrampath(), ROM_SETTINGS.goodname);
+    if (get_file_size(path, &size) == file_ok && size > 0)
+    {
+        return path;
+    }
+
+    /* else use new path */
+    return formatstr("%s%s.mpk", get_savesrampath(), get_save_filename());
 }
 
 static char *get_eeprom_path(void)
 {
-    return formatstr("%s%s.eep", get_savesrampath(), ROM_SETTINGS.goodname);
+    char *path;
+    size_t size = 0;
+
+    /* check if old file path exists, if it does then use that */
+    path = formatstr("%s%s.eep", get_savesrampath(), ROM_SETTINGS.goodname);
+    if (get_file_size(path, &size) == file_ok && size > 0)
+    {
+        return path;
+    }
+
+    /* else use new path */
+    return formatstr("%s%s.eep", get_savesrampath(), get_save_filename());
 }
 
 static char *get_sram_path(void)
 {
-    return formatstr("%s%s.sra", get_savesrampath(), ROM_SETTINGS.goodname);
+    char *path;
+    size_t size = 0;
+
+    /* check if old file path exists, if it does then use that */
+    path = formatstr("%s%s.sra", get_savesrampath(), ROM_SETTINGS.goodname);
+    if (get_file_size(path, &size) == file_ok && size > 0)
+    {
+        return path;
+    }
+
+    /* else use new path */
+    return formatstr("%s%s.sra", get_savesrampath(), get_save_filename());
 }
 
 static char *get_flashram_path(void)
 {
-    return formatstr("%s%s.fla", get_savesrampath(), ROM_SETTINGS.goodname);
+    char *path;
+    size_t size = 0;
+
+    /* check if old file path exists, if it does then use that */
+    path = formatstr("%s%s.fla", get_savesrampath(), ROM_SETTINGS.goodname);
+    if (get_file_size(path, &size) == file_ok && size > 0)
+    {
+        return path;
+    }
+
+    /* else use new path */
+    return formatstr("%s%s.fla", get_savesrampath(), get_save_filename());
 }
 
 static char *get_gb_ram_path(const char* gbrom, unsigned int control_id)
@@ -284,6 +345,12 @@ const char *get_savesrampath(void)
     return get_savepathdefault(ConfigGetParamString(g_CoreConfig, "SaveSRAMPath"));
 }
 
+const char *get_savestatefilename(void)
+{
+    /* return same file name as save files */
+    return get_save_filename();
+}
+
 void main_message(m64p_msg_level level, unsigned int corner, const char *format, ...)
 {
     va_list ap;
@@ -356,9 +423,6 @@ int main_set_core_defaults(void)
     ConfigSetDefaultString(g_CoreConfig, "SaveStatePath", "", "Path to directory where emulator save states (snapshots) are saved. If this is blank, the default value of ${UserDataPath}/save will be used");
     ConfigSetDefaultString(g_CoreConfig, "SaveSRAMPath", "", "Path to directory where SRAM/EEPROM data (in-game saves) are stored. If this is blank, the default value of ${UserDataPath}/save will be used");
     ConfigSetDefaultString(g_CoreConfig, "SharedDataPath", "", "Path to a directory to search when looking for shared data files");
-    ConfigSetDefaultInt(g_CoreConfig, "ForceAlignmentOfPiDma", -1, "Force alignment of Pi DMA, set to 0 to allow some ROM hacks to work, -1 for game default");
-    ConfigSetDefaultInt(g_CoreConfig, "TlbHack", 0, "Ignore TLB exception, set to 1 to allow some rom hacks to work");
-    ConfigSetDefaultInt(g_CoreConfig, "CountPerScanlineOverride", 0, "Count per scanline override, 0 for game default");
     ConfigSetDefaultBool(g_CoreConfig, "RandomizeInterrupt", 1, "Randomize PI/SI Interrupt Timing");
     ConfigSetDefaultInt(g_CoreConfig, "SiDmaDuration", -1, "Duration of SI DMA (-1: use per game settings)");
     ConfigSetDefaultString(g_CoreConfig, "GbCameraVideoCaptureBackend1", DEFAULT_VIDEO_CAPTURE_BACKEND, "Gameboy Camera Video Capture backend");
@@ -588,6 +652,10 @@ m64p_error main_core_state_query(m64p_core_param param, int *rval)
     switch (param)
     {
         case M64CORE_EMU_STATE:
+            //if (g_EmuModeInitiated != 1) {
+            //    *rval = -2;
+            //    break;
+            //}
             if (!g_EmulatorRunning)
                 *rval = M64EMU_STOPPED;
             else if (g_rom_pause)
@@ -623,8 +691,6 @@ m64p_error main_core_state_query(m64p_core_param param, int *rval)
         }
         case M64CORE_AUDIO_VOLUME:
         {
-            if (!g_EmulatorRunning)
-                return M64ERR_INVALID_STATE;    
             return main_volume_get_level(rval);
         }
         case M64CORE_AUDIO_MUTE:
@@ -703,10 +769,19 @@ m64p_error main_core_state_set(m64p_core_param param, int val)
         {
             // the front-end app is telling us that the user has resized the video output frame, and so
             // we should try to update the video plugin accordingly.  First, check state
-            int width, height;
+            if (val <= 0){
+                l_SettingsReset = val;
+                return M64ERR_SUCCESS;
+            }
+	    int width, height;
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
-            width = (val >> 16) & 0xffff;
+            if (g_rom_pause)
+	    {
+		    main_toggle_pause();
+		    l_SettingsReset = 1;
+	    }
+	    width = (val >> 16) & 0xffff;
             height = val & 0xffff;
             // then call the video plugin.  if the video plugin supports resizing, it will resize its viewport and call
             // VidExt_ResizeWindow to update the window manager handling our opengl output window
@@ -716,7 +791,9 @@ m64p_error main_core_state_set(m64p_core_param param, int val)
         case M64CORE_AUDIO_VOLUME:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
-            if (val < 0 || val > 100)
+            if (val == -2)
+		return M64ERR_SUCCESS;
+	    else if (val < 0 || val > 100)
                 return M64ERR_INPUT_INVALID;
             return main_volume_set_level(val);
         case M64CORE_AUDIO_MUTE:
@@ -851,6 +928,9 @@ void new_frame(void)
     /* advance the current frame */
     l_CurrentFrame++;
 
+    if(l_SettingsReset != 0) //&& g_EmuModeInitiated == 1)
+	l_SettingsFrameCounter++;
+
     if (l_FrameAdvance) {
         g_rom_pause = 1;
         l_FrameAdvance = 0;
@@ -949,12 +1029,29 @@ static void pause_loop(void)
     if(g_rom_pause)
     {
         osd_render();  // draw Paused message in case gfx.updateScreen didn't do it
-        VidExt_GL_SwapBuffers();
-        while(g_rom_pause)
+        
+	// using estimated frame skip settings with gfx plugin causes black screen
+	if(l_SettingsReset == 0 && l_SettingsFrameCounter == -1)
+            l_SettingsFrameCounter = 0;
+        else
+	    VidExt_GL_SwapBuffers();
+        
+	while(g_rom_pause)
         {
             SDL_Delay(10);
             main_check_inputs();
         }
+    }
+}
+
+/* Making sure to pause once the core has started up if resetting from settings;
+ * sometimes the graphics plugin finishes first */
+static void settings_reset_check(void)
+{
+    if(g_EmulatorRunning && !g_rom_pause && l_SettingsReset != 0 && l_SettingsFrameCounter >= 17){
+        main_toggle_pause();
+        l_SettingsFrameCounter = -1; // set to -1 to avoid swap buffer in case of frame skip settings
+        l_SettingsReset = 0;
     }
 }
 
@@ -974,6 +1071,8 @@ void new_vi(void)
     pause_loop();
 
     netplay_check_sync(&g_dev.r4300.cp0);
+
+    settings_reset_check();
 }
 
 static void main_switch_pak(int control_id)
@@ -1481,9 +1580,6 @@ m64p_error main_run(void)
     uint32_t count_per_op_denom_pot;
     uint32_t emumode;
     uint32_t disable_extra_mem;
-    int32_t force_alignment_pi_dma;
-    uint32_t tlb_hack;
-    int32_t count_per_scanline_override;
     int32_t si_dma_duration;
     int32_t no_compiled_jump;
     int32_t randomize_interrupt;
@@ -1530,24 +1626,14 @@ m64p_error main_run(void)
     randomize_interrupt = !netplay_is_init() ? ConfigGetParamBool(g_CoreConfig, "RandomizeInterrupt") : 0;
     count_per_op = ConfigGetParamInt(g_CoreConfig, "CountPerOp");
     count_per_op_denom_pot = ConfigGetParamInt(g_CoreConfig, "CountPerOpDenomPot");
-    force_alignment_pi_dma = ConfigGetParamInt(g_CoreConfig, "ForceAlignmentOfPiDma");
-    count_per_scanline_override = ConfigGetParamInt(g_CoreConfig, "CountPerScanlineOverride");
-    tlb_hack = ConfigGetParamInt(g_CoreConfig, "TlbHack");
 
     if (ROM_SETTINGS.disableextramem)
         disable_extra_mem = ROM_SETTINGS.disableextramem;
     else
         disable_extra_mem = ConfigGetParamInt(g_CoreConfig, "DisableExtraMem");
 
-    if (force_alignment_pi_dma == -1) {
-        force_alignment_pi_dma = ROM_SETTINGS.forcealignmentofpidma;
-    }
 
-    if (count_per_scanline_override <= 0) {
-        count_per_scanline_override = ROM_SETTINGS.countPerScanlineOverride;
-    }
-
-    rdram_size = (disable_extra_mem == 0) ? RDRAM_8MB_SIZE : RDRAM_4MB_SIZE;
+    rdram_size = (disable_extra_mem == 0) ? 0x800000 : 0x400000;
 
     if (count_per_op <= 0)
         count_per_op = ROM_SETTINGS.countperop;
@@ -1807,15 +1893,11 @@ m64p_error main_run(void)
                 no_compiled_jump,
                 randomize_interrupt,
                 g_start_address,
-                force_alignment_pi_dma,
-                tlb_hack,
                 &g_dev.ai, &g_iaudio_out_backend_plugin_compat, ((float)ROM_SETTINGS.aidmamodifier / 100.0),
                 si_dma_duration,
                 rdram_size,
                 joybus_devices, ijoybus_devices,
-                vi_clock_from_tv_standard(ROM_PARAMS.systemtype),
-                vi_expected_refresh_rate_from_tv_standard(ROM_PARAMS.systemtype),
-                count_per_scanline_override,
+                vi_clock_from_tv_standard(ROM_PARAMS.systemtype), vi_expected_refresh_rate_from_tv_standard(ROM_PARAMS.systemtype),
                 NULL, &g_iclock_ctime_plus_delta,
                 g_rom_size,
                 eeprom_type,
@@ -1869,15 +1951,12 @@ m64p_error main_run(void)
     osd_new_message(OSD_MIDDLE_CENTER, "Mupen64Plus Started...");
 
     g_EmulatorRunning = 1;
+    l_SettingsFrameCounter = 0;
     StateChanged(M64CORE_EMU_STATE, M64EMU_RUNNING);
 
     poweron_device(&g_dev);
     pif_bootrom_hle_execute(&g_dev.r4300);
-
-    if (setjmp(jump_exit) == 0)
-        run_device(&g_dev);
-    else
-        DebugMessage(M64MSG_STATUS, "Exit requested");
+    run_device(&g_dev);
 
     /* now begin to shut down */
 #ifdef WITH_LIRC
@@ -1917,6 +1996,7 @@ m64p_error main_run(void)
 
     // clean up
     g_EmulatorRunning = 0;
+    //g_EmuModeInitiated = 0;
     StateChanged(M64CORE_EMU_STATE, M64EMU_STOPPED);
 
     return M64ERR_SUCCESS;

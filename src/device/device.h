@@ -125,8 +125,6 @@ void init_device(struct device* dev,
     int no_compiled_jump,
     int randomize_interrupt,
     uint32_t start_address,
-    int forceAlignmentOfPiDma,
-    int tlbHack,
     /* ai */
     void* aout, const struct audio_out_backend_interface* iaout, float dma_modifier,
     /* si */
@@ -137,7 +135,7 @@ void init_device(struct device* dev,
     void* jbds[PIF_CHANNELS_COUNT],
     const struct joybus_device_interface* ijbds[PIF_CHANNELS_COUNT],
     /* vi */
-    unsigned int vi_clock, unsigned int expected_refresh_rate, int count_per_scanline_override,
+    unsigned int vi_clock, unsigned int expected_refresh_rate,
     /* cart */
     void* af_rtc_clock, const struct clock_backend_interface* iaf_rtc_clock,
     size_t rom_size,

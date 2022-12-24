@@ -41,7 +41,7 @@
 #include <time.h>
 
 void init_r4300(struct r4300_core* r4300, struct memory* mem, struct mi_controller* mi, struct rdram* rdram, const struct interrupt_handler* interrupt_handlers,
-    unsigned int emumode, unsigned int count_per_op, unsigned int count_per_op_denom_pot, int no_compiled_jump, int randomize_interrupt, int tlbHack, uint32_t start_address)
+    unsigned int emumode, unsigned int count_per_op, unsigned int count_per_op_denom_pot, int no_compiled_jump, int randomize_interrupt, uint32_t start_address)
 {
     struct new_dynarec_hot_state* new_dynarec_hot_state =
 #ifdef NEW_DYNAREC
@@ -51,7 +51,7 @@ void init_r4300(struct r4300_core* r4300, struct memory* mem, struct mi_controll
 #endif
 
     r4300->emumode = emumode;
-    init_cp0(&r4300->cp0, count_per_op, count_per_op_denom_pot, tlbHack, new_dynarec_hot_state, interrupt_handlers);
+    init_cp0(&r4300->cp0, count_per_op, count_per_op_denom_pot, new_dynarec_hot_state, interrupt_handlers);
     init_cp1(&r4300->cp1, new_dynarec_hot_state);
 
 #ifndef NEW_DYNAREC
@@ -141,6 +141,7 @@ void run_r4300(struct r4300_core* r4300)
     {
         DebugMessage(M64MSG_INFO, "Starting R4300 emulator: Pure Interpreter");
         r4300->emumode = EMUMODE_PURE_INTERPRETER;
+	//g_EmuModeInitiated = 1;
         run_pure_interpreter(r4300);
     }
 #if defined(DYNAREC)
@@ -151,6 +152,7 @@ void run_r4300(struct r4300_core* r4300)
         init_blocks(&r4300->cached_interp);
 #ifdef NEW_DYNAREC
         new_dynarec_init();
+	//g_EmuModeInitiated = 1;
         new_dyna_start();
         new_dynarec_cleanup();
 #else
@@ -191,6 +193,8 @@ void run_r4300(struct r4300_core* r4300)
         }
 
         r4300->cp0.last_addr = *r4300_pc(r4300);
+
+	//g_EmuModeInitiated = 1;
 
         run_cached_interpreter(r4300);
 

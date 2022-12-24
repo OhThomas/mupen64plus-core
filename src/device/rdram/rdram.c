@@ -84,7 +84,10 @@ static size_t get_module(const struct rdram* rdram, uint32_t address)
 static void read_rdram_dram_corrupted(void* opaque, uint32_t address, uint32_t* value)
 {
     struct rdram* rdram = (struct rdram*)opaque;
+    uint32_t addr = rdram_dram_address(address);
     size_t module;
+
+    *value = rdram->dram[addr];
 
     module = get_module(rdram, address);
     if (module == RDRAM_MAX_MODULES_COUNT) {
@@ -96,11 +99,7 @@ static void read_rdram_dram_corrupted(void* opaque, uint32_t address, uint32_t* 
     uint32_t mode = rdram->regs[module][RDRAM_MODE_REG] ^ UINT32_C(0xc0c0c0c0);
     if ((mode & 0x80000000) && (cc_value(mode) == 0)) {
         *value = 0;
-        return;
     }
-    
-	uint32_t addr = rdram_dram_address(address);
-    *value = rdram->dram[addr];
 }
 
 static void map_corrupt_rdram(struct rdram* rdram, int corrupt)
@@ -139,7 +138,7 @@ void poweron_rdram(struct rdram* rdram)
     size_t module;
     size_t modules = get_modules_count(rdram);
     memset(rdram->regs, 0, RDRAM_MAX_MODULES_COUNT*RDRAM_REGS_COUNT*sizeof(uint32_t));
-    memset(rdram->dram, 0, RDRAM_16MB_SIZE);
+    memset(rdram->dram, 0, rdram->dram_size);
 
     DebugMessage(M64MSG_INFO, "Initializing %u RDRAM modules for a total of %u MB",
         (uint32_t) modules, (uint32_t) rdram->dram_size / (1024*1024));

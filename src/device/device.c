@@ -87,8 +87,6 @@ void init_device(struct device* dev,
     int no_compiled_jump,
     int randomize_interrupt,
     uint32_t start_address,
-    int forceAlignmentOfPiDma,
-    int tlbHack,
     /* ai */
     void* aout, const struct audio_out_backend_interface* iaout, float dma_modifier,
     /* si */
@@ -99,7 +97,7 @@ void init_device(struct device* dev,
     void* jbds[PIF_CHANNELS_COUNT],
     const struct joybus_device_interface* ijbds[PIF_CHANNELS_COUNT],
     /* vi */
-    unsigned int vi_clock, unsigned int expected_refresh_rate, int count_per_scanline_override,
+    unsigned int vi_clock, unsigned int expected_refresh_rate,
     /* cart */
     void* af_rtc_clock, const struct clock_backend_interface* iaf_rtc_clock,
     size_t rom_size,
@@ -181,7 +179,7 @@ void init_device(struct device* dev,
     init_rdram(&dev->rdram, mem_base_u32(base, MM_RDRAM_DRAM), dram_size, &dev->r4300);
 
     init_r4300(&dev->r4300, &dev->mem, &dev->mi, &dev->rdram, interrupt_handlers,
-            emumode, count_per_op, count_per_op_denom_pot, no_compiled_jump, randomize_interrupt, tlbHack, start_address);
+            emumode, count_per_op, count_per_op_denom_pot, no_compiled_jump, randomize_interrupt, start_address);
     init_rdp(&dev->dp, &dev->sp, &dev->mi, &dev->mem, &dev->rdram, &dev->r4300);
     init_rsp(&dev->sp, mem_base_u32(base, MM_RSP_MEM), &dev->mi, &dev->dp, &dev->ri);
     init_ai(&dev->ai, &dev->mi, &dev->ri, &dev->vi, aout, iaout, dma_modifier);
@@ -189,10 +187,10 @@ void init_device(struct device* dev,
     init_pi(&dev->pi,
             get_pi_dma_handler,
             &dev->cart, &dev->dd,
-            &dev->mi, &dev->ri, &dev->dp, forceAlignmentOfPiDma);
+            &dev->mi, &dev->ri, &dev->dp);
     init_ri(&dev->ri, &dev->rdram);
     init_si(&dev->si, si_dma_duration, &dev->mi, &dev->pif, &dev->ri);
-    init_vi(&dev->vi, vi_clock, expected_refresh_rate, count_per_scanline_override, &dev->mi, &dev->dp);
+    init_vi(&dev->vi, vi_clock, expected_refresh_rate, &dev->mi, &dev->dp);
 
     /* FIXME: should boot on cart, unless only a disk is present, but having no cart is not yet supported by ui/core,
      * so use another way of selecting boot device:
